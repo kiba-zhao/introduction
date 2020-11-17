@@ -11,15 +11,18 @@
   * [功能函数](#功能函数)
   * [离线任务](#离线任务)
 * [http框架约定](#http框架约定)
-  * http请求日志
-  * http异常处理
-  * http补充内容传递
-  * swagger接口文档
-  * 接口请求验证
-* 数据操作约定
-  * sequelize
-  * redis
-  * rocketmq
+  * [http请求日志](#http请求日志)
+  * [http异常处理](#http异常处理)
+  * [http补充内容](#http补充内容)
+  * [swagger接口文档](#swagger接口文档)
+  * [接口请求验证](#接口请求验证)
+* [数据操作约定](#数据操作约定)
+  * [sequelize](#sequelize)
+  * [redis](#redis)
+  * [rocketmq](#rocketmq)
+* [调试](#调试)
+* [发布](#发布)
+* [快速开发](#快速开发)
 
 ## eggjs基本约定 ##
 首先，我们需要遵照[eggjs](https://eggjs.org/zh-cn/)包含的[基本约定](https://eggjs.org/zh-cn/basics/structure.html)．
@@ -384,3 +387,145 @@ class Simple extends Subscription {
   * 文章发布后的订阅通知消息发送
 
 ## http框架约定 ##
+我们还需要实现一些业务逻辑以外的功能，来满足方便服务使用的需求．
+
+### http请求日志 ###
+记录http请求日志，有助于确认接口被请求调用的情况．可以方便的帮助开发人员找到或排除问题．
+
+我们需要记录的http日志有两种
+  * 访问当前服务接口的请求
+  * 当前服务访问其他服务接口的请求
+  
+> 我们可以通过使用[egg-http-logger](https://github.com/kiba-zhao/egg-http-logger)插件来实现请求日志的记录需求．
+
+### http异常处理 ###
+在服务或业务逻辑出现错误时，需要通过抛出错误状态以及一些错误信息，来宣告请求出错的原因．
+
+> 通过使用[egg-http-error](https://github.com/kiba-zhao/egg-http-error)插件来实现
+
+### http补充内容 ###
+在服务接口的功能里，会出现一些都需要使用的数据．比如：用户标识,应用标识等．
+
+常用的补充内容：
+  * 应用标识(App-ID)：标识不同应用的数据．
+  * 认证标识(Auth-ID)：标识当前用户.
+  * 客户端名称(Client-Name)：请求访问发起的客户端名称（网关名称）
+  * 服务名称(Service-Name)：请求访问发起的服务端名称（服务名）
+  
+> 为了避免反复书写处理这类数据的功能代码，推荐使用[egg-http-relay](https://github.com/kiba-zhao/egg-http-relay)插件．
+
+> 该插件可以将指定的http header头，设置到ctx.params中．以及在使用eggjs的HttpClient请求其他接口时，将指定http header头传递过去．
+
+### swagger接口文档 ###
+其他服务或客户端访问当前服务接口，需要提供接口文档以便开发请求访问功能的应用程序．
+
+通常我们需要至少提供以下入口的接口文档：
+  * 服务接口文档(openapi.yml)：通常由其他服务或网管请求访问
+  * web接口文档(webapi.yml)：通过web网关请求访问的接口
+
+> 推荐使用[egg-swagger](https://github.com/kiba-zhao/egg-swagger)插件．
+
+> 我们需要遵照openapi 3.x规范的接口文档放在app/docs目录下.
+
+### 接口请求验证 ###
+请求访问接口的数据，在执行业务逻辑功能前，需要按照指定的数据格式进行检查．不符合格式的数据，需要直接抛出错误提示．
+我们希望尽量减少验证代码的开发工作，因此推荐使用swagger接口文档里的接口描述进行验证．
+
+> 插件尚未完成
+
+> 插件会读取app/docs/openapi.yml来进行接口请求验证．
+
+## 数据操作约定 ##
+推荐在服务运行之前，先在存储里定义好数据的结构．
+
+### sequelize ###
+我们使用[sequelize](https://sequelize.org/)来操作关系性数据库．并且在initdb目录下创建初始化数据库脚本．
+
+> 推荐使用[egg-sequelize](https://github.com/eggjs/egg-sequelize)插件.
+
+### redis ###
+我们使用redis来缓存数据
+
+> 推荐使用[egg-redis](https://github.com/eggjs/egg-redis)插件．
+
+### rocketmq ###
+我们使用rocketmq来作为服务的消息队列．我们可以通过发布消息来通知其他[离线任务](#离线任务)，也可以通过订阅消息来触发
+
+>插件尚未完成
+
+## 调试 ##
+本地开发需要有一个调试环境，这个环境包含相关的数据库，缓存，消息队列以及三方接口．我们将服务运行的环境设置在docker-compose.yml里．利用docker构建本地开发环境
+
+docker-compose.yml示例文件内容：
+
+``` yaml
+version: '3'
+services:
+  mysql:
+    image: "mysql:5"
+    volumes:
+     - ./mysql:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+    ports:
+     - "127.0.0.1:3306:3306"
+  redis:
+    image: "redis:5-alpine"
+    ports:
+     - "127.0.0.1:6379:6379"
+  json-server:
+    image: clue/json-server
+    volumes:
+     - ./mockdata:/data
+    command: --routes /data/routes.json
+    ports:
+     - "127.0.0.1:3000:80"
+  namesrv:
+    image: rocketmqinc/rocketmq:4.3.0
+    command: sh mqnamesrv
+    ports:
+      - "127.0.0.1:9876:9876"
+  mqbroker:
+    image: rocketmqinc/rocketmq:4.3.0
+    command: sh mqbroker -n namesrv:9876
+    ports:
+      - "127.0.0.1:10911:10911"
+      - "127.0.0.1:10909:10909"
+    depends_on: namesrv
+```
+
+yml内容说明：
+  * 数据存储： mysql
+  * 缓存: redis
+  * 伪造http接口: json-server
+  * rockermq: namesrv + mqbroker
+
+
+> eggjs断点调试请参考[官方教程](https://eggjs.org/zh-cn/core/development.html#%E4%BD%BF%E7%94%A8-egg-bin-%E8%B0%83%E8%AF%95)
+
+## 发布 ##
+为了方便布局，我们将服务整个打包成docker镜像．
+
+Dockerfile示例文件内容:
+
+``` dockerfile
+FROM node:lts-alpine
+
+ENV NODE_ENV=production
+
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
+
+COPY app ./app
+COPY config ./config
+COPY package.json ./package.json
+COPY node_modules ./node_modules
+
+EXPOSE 80
+CMD npm run start
+```
+
+## 快速开发 ##
