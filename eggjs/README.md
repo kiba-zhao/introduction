@@ -10,10 +10,11 @@
   * [业务逻辑](#业务逻辑)
   * [功能函数](#功能函数)
   * [离线任务](#离线任务)
-* [http框架约定](#http框架约定)
+* [http开发约定](#http开发约定)
   * [http请求日志](#http请求日志)
   * [http异常处理](#http异常处理)
   * [http补充内容](#http补充内容)
+  * [参数注入](#参数注入)  
   * [swagger接口文档](#swagger接口文档)
   * [接口请求验证](#接口请求验证)
 * [数据操作约定](#数据操作约定)
@@ -126,7 +127,7 @@ class SimpleController extends Controller {
     */
     async index(){
         const { ctx } = this;
-        const res = await ctx.service.simple.find({...ctx.query,...ctx.params});
+        const res = await ctx.service.simple.find(ctx.query,ctx.params);
         ctx.body = res;
     }
     
@@ -135,7 +136,7 @@ class SimpleController extends Controller {
    */
     async post() {
         const { ctx } = this;
-        const res = await ctx.service.simple.createOne({...ctx.request.body,...ctx.params});
+        const res = await ctx.service.simple.createOne(ctx.request.body,ctx.params);
         if (!res) { return; }
         ctx.body = res;
         ctx.status = 201;
@@ -146,7 +147,8 @@ class SimpleController extends Controller {
    */
     async get() {
         const { ctx } = this;
-        const res = await ctx.service.simple.findOne({ ...ctx.query, ...ctx.params });
+        const {id,...opts} = ctx.params;
+        const res = await ctx.service.simple.findOne({...ctx.query,id},opts);
         if (!res) { return; }
         ctx.body = res;
     }
@@ -157,7 +159,7 @@ class SimpleController extends Controller {
     async put() {
         const { ctx } = this;
         const {id,...opts} = ctx.params;
-        const res = await ctx.service.simple.replaceOne({...ctx.request.body,...opts,id},{...ctx.query,...opts});
+        const res = await ctx.service.simple.replaceOne(ctx.request.body,{...ctx.query,id},opts);
         if (!res) { return; }
         ctx.body = res;
         ctx.status = 200;
@@ -169,7 +171,7 @@ class SimpleController extends Controller {
     async patch() {
         const { ctx } = this;
         const {id,...opts} = ctx.params;
-        const res = await ctx.service.simple.updateOne({...ctx.request.body,...opts,id},{...ctx.query,...opts});
+        const res = await ctx.service.simple.updateOne(ctx.request.body,{...ctx.query,id},opts);
         if (!res) { return; }
         ctx.body = res;
         ctx.status = 200;
@@ -180,7 +182,8 @@ class SimpleController extends Controller {
     */
     async delete() {
         const { ctx } = this;
-        const res = await ctx.service.simple.deleteOne({ ...ctx.query, ...ctx.params });
+        const {id,...opts} = ctx.params;
+        const res = await ctx.service.simple.deleteOne({...ctx.query,id},opts);
         if (!res) { return; }
         ctx.status = 204;
     }
@@ -190,7 +193,7 @@ class SimpleController extends Controller {
     */
     async clean() {
         const { ctx } = this;
-        const res = await ctx.service.simple.deleteAll({ ...ctx.query, ...ctx.params });
+        const res = await ctx.service.simple.deleteAll(ctx.query,ctx.params);
         if (!res) { return; }
         ctx.status = 204;
     }
@@ -200,7 +203,8 @@ class SimpleController extends Controller {
     */
     async head() {
         const { ctx } = this;
-        const res = await ctx.service.simple.findOne({ ...ctx.query, ...ctx.params });
+        const {id,...opts} = ctx.params;
+        const res = await ctx.service.simple.findOne({...ctx.query,id},opts);
         if (!res) { return; }
         const buffer = Buffer.form(JSON.stringify(res));
         ctx.set({
@@ -248,46 +252,53 @@ class SimpleService extends Service {
   /**
    * 列出匹配条件的所有资源
    * @param {Object} condition 匹配条件
+   * @param {Object} opts 可选项
    */
-   async find(condition) {}
+   async find(condition,opts) {}
 
   /**
    * 获取一个匹配的资源
    * @param {Object} condition 匹配条件
+   * @param {Object} opts 可选项   
    */
-   async findOne(condition) {}
+   async findOne(condition,opts) {}
 
   /**
    * 新建一个资源
    * @param {Object} entity 资源内容
+   * @param {Object} opts 可选项      
    */
-   async createOne(entity) {}
+   async createOne(entity,opts) {}
    
   /**
    * 更新一个匹配资源的内容
    * @param {Object} entity 更新资源内容
    * @param {Object} condition 匹配条件
+   * @param {Object} opts 可选项
    */
-   async replaceOne(entity,condition){}
+   async replaceOne(entity,condition,opts){}
    
   /**
    * 更新一个匹配资源的部分内容
    * @param {Object} entity 更新资源内容
    * @param {Object} condition 匹配条件
+   * @param {Object} opts 可选项
    */
-   async updateOne(entity,condition){}
+   async updateOne(entity,condition,opts){}
    
   /**
    * 销毁一个匹配的资源
    * @param {Object} condition 匹配条件
+   * @param {Object} opts 可选项
    */
-   async deleteOne(condition) {}
+   async deleteOne(condition,opts) {}
    
   /**
    * 销毁匹配的所有资源
    * @param {Object} condition 匹配条件
+   * @param {Object} opts 可选项
    */
-   async deleteAll(condition) {}
+   async deleteAll(condition,opts) {}
    
 }
 ```
@@ -386,7 +397,7 @@ class Simple extends Subscription {
   * 支付成功后的后续通知消息发送
   * 文章发布后的订阅通知消息发送
 
-## http框架约定 ##
+## http开发约定 ##
 我们还需要实现一些业务逻辑以外的功能，来满足方便服务使用的需求．
 
 ### http请求日志 ###
@@ -415,6 +426,11 @@ class Simple extends Subscription {
 > 为了避免反复书写处理这类数据的功能代码，推荐使用[egg-http-relay](https://github.com/kiba-zhao/egg-http-relay)插件．
 
 > 该插件可以将指定的http header头，设置到ctx.params中．以及在使用eggjs的HttpClient请求其他接口时，将指定http header头传递过去．
+
+### 参数注入 ###
+通常我们需要在业务逻辑中，使用http header头里的一些信息．为了方便开发，我们将headers数据注入到ctx.params中使用
+
+> 推荐使用[egg-params-inject](https://github.com/kiba-zhao/egg-params-inject)插件
 
 ### swagger接口文档 ###
 其他服务或客户端访问当前服务接口，需要提供接口文档以便开发请求访问功能的应用程序．
