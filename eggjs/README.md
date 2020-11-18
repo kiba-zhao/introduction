@@ -21,9 +21,9 @@
   * [sequelize](#sequelize)
   * [redis](#redis)
   * [rocketmq](#rocketmq)
+* [快速开发](#快速开发)
 * [调试](#调试)
 * [发布](#发布)
-* [快速开发](#快速开发)
 
 ## eggjs基本约定 ##
 首先，我们需要遵照[eggjs](https://eggjs.org/zh-cn/)包含的[基本约定](https://eggjs.org/zh-cn/basics/structure.html)．
@@ -72,6 +72,8 @@ module.exports = app => {
 };
 ```
 > 这里采用的method命名与eggjs示例不一致，这样主要是为了方便找到函数相对应的http methods．
+
+**为了减少不必要的重复代码以及代码文件创建，推荐使用[egg-router-simple](https://github.com/kiba-zhao/egg-router-simple)插件简化restful接口路由定义**
 
 ### 请求处理 ###
 在[eggjs](https://eggjs.org/zh-cn/)里，使用[controller](https://eggjs.org/zh-cn/basics/controller.html)进行http请求处理．主要用于将http请求，转换处理为业务逻辑所需要的数据．并将数据提交给相应的业务进行处理．
@@ -159,7 +161,7 @@ class SimpleController extends Controller {
     async put() {
         const { ctx } = this;
         const {id,...opts} = ctx.params;
-        const res = await ctx.service.simple.replaceOne(ctx.request.body,{...ctx.query,id},opts);
+        const res = await ctx.service.simple.replaceOne({...ctx.request.body,id},{...ctx.query,id},opts);
         if (!res) { return; }
         ctx.body = res;
         ctx.status = 200;
@@ -469,6 +471,10 @@ class Simple extends Subscription {
 
 >插件尚未完成
 
+## 快速开发 ##
+我们推荐使用一些命令工具来帮助快速创建项目，生成默认接口代码，以及数据操作接口代码等．
+
+
 ## 调试 ##
 本地开发需要有一个调试环境，这个环境包含相关的数据库，缓存，消息队列以及三方接口．我们将服务运行的环境设置在docker-compose.yml里．利用docker构建本地开发环境
 
@@ -543,5 +549,3 @@ COPY node_modules ./node_modules
 EXPOSE 80
 CMD npm run start
 ```
-
-## 快速开发 ##
