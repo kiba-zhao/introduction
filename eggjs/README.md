@@ -20,7 +20,8 @@
 * [数据操作约定](#数据操作约定)
   * [sequelize](#sequelize)
   * [redis](#redis)
-  * [rocketmq](#rocketmq)
+  * ~~[rocketmq](#rocketmq)~~
+  * [rabbitmq](#rabbitmq)
 * [快速开发](#快速开发)
 * [调试](#调试)
 * [发布](#发布)
@@ -348,8 +349,6 @@ class SimpleService extends Service {
 ### 离线任务 ###
 除了正常的http接口调用外，我们还需要一些业务功能，需要使用[任务程序](https://eggjs.org/zh-cn/basics/schedule.html)来实现．
 
-#### 定时任务 ####
-
 ``` javascript
 const Subscription = require('egg').Subscription;
 
@@ -376,28 +375,7 @@ class Simple extends Subscription {
 适合定时任务的一些常见业务场景：
   * 定时复查更新待支付订单状态
   * 定时清理过期缓存数据
-
-#### 手动任务 ####
-由其他功能代码触发执行的离线任务程序．通常是通过消息处理插件触发．
-
-``` javascript
-const { Subscription } = require('egg');
-
-class Simple extends Subscription {
-  // 禁止被定时触发
-  static get schedule() {
-    return { disable: true };
-  }
-  
-  // 触发时执行的功能函数
-  async subscribe(message) {
-    const { ctx } = this;
-  }
-}
-```
-常见业务场景：
-  * 支付成功后的后续通知消息发送
-  * 文章发布后的订阅通知消息发送
+  * 定时检查并重发异常消息
 
 ## http开发约定 ##
 我们还需要实现一些业务逻辑以外的功能，来满足方便服务使用的需求．
@@ -469,7 +447,12 @@ class Simple extends Subscription {
 ### rocketmq ###
 我们使用rocketmq来作为服务的消息队列．我们可以通过发布消息来通知其他[离线任务](#离线任务)，也可以通过订阅消息来触发
 
->插件尚未完成
+>插件尚未完成,由于apache官方client包还处于dev阶段,且底层使用的ccp client无法在开发机器上运行
+
+### rabbitmq ###
+消息队列目前比较合适的替代方案．
+
+> 推荐使用[egg-rabbitmq](https://github.com/kiba-zhao/egg-rabbitmq)插件
 
 ## 快速开发 ##
 我们推荐使用一些命令工具来帮助快速创建项目，生成默认接口代码，以及数据操作接口代码等．
@@ -502,25 +485,20 @@ services:
     command: --routes /data/routes.json
     ports:
      - "127.0.0.1:3000:80"
-  namesrv:
-    image: rocketmqinc/rocketmq:4.3.0
-    command: sh mqnamesrv
+  rabbitmq:
+    image: "rabbitmq:3-alpine"
     ports:
-      - "127.0.0.1:9876:9876"
-  mqbroker:
-    image: rocketmqinc/rocketmq:4.3.0
-    command: sh mqbroker -n namesrv:9876
-    ports:
-      - "127.0.0.1:10911:10911"
-      - "127.0.0.1:10909:10909"
-    depends_on: namesrv
+    - "127.0.0.1:15672:15672"
+    - "127.0.0.1:4369:4369"
+    - "127.0.0.1:5672:5672"
+    - "127.0.0.1:25672:25672"
 ```
 
 yml内容说明：
   * 数据存储： mysql
   * 缓存: redis
   * 伪造http接口: json-server
-  * rockermq: namesrv + mqbroker
+  * rabbitmq: rabbitmq
 
 
 > eggjs断点调试请参考[官方教程](https://eggjs.org/zh-cn/core/development.html#%E4%BD%BF%E7%94%A8-egg-bin-%E8%B0%83%E8%AF%95)
