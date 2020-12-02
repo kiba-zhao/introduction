@@ -13,16 +13,18 @@
 * [http开发约定](#http开发约定)
   * [http请求日志](#http请求日志)
   * [http异常处理](#http异常处理)
-  * [http补充内容](#http补充内容)
+  * [http接口模型](#http接口模型)
   * [参数注入](#参数注入)  
   * [swagger接口文档](#swagger接口文档)
   * [接口请求验证](#接口请求验证)
 * [数据操作约定](#数据操作约定)
   * [sequelize](#sequelize)
   * [redis](#redis)
-  * ~~[rocketmq](#rocketmq)~~
   * [rabbitmq](#rabbitmq)
 * [快速开发](#快速开发)
+  * [使用http框架](#使用http框架)
+  * [项目快速创建](#项目快速创建)
+  * [sequelize资源快速创建](#sequelize资源快速创建)
 * [调试](#调试)
 * [发布](#发布)
 
@@ -378,7 +380,7 @@ class Simple extends Subscription {
   * 定时检查并重发异常消息
 
 ## http开发约定 ##
-我们还需要实现一些业务逻辑以外的功能，来满足方便服务使用的需求．
+我们还需要实现一些业务逻辑以外的功能，方便服务的开发，运行和排错．
 
 ### http请求日志 ###
 记录http请求日志，有助于确认接口被请求调用的情况．可以方便的帮助开发人员找到或排除问题．
@@ -394,18 +396,107 @@ class Simple extends Subscription {
 
 > 通过使用[egg-http-error](https://github.com/kiba-zhao/egg-http-error)插件来实现
 
-### http补充内容 ###
-在服务接口的功能里，会出现一些都需要使用的数据．比如：用户标识,应用标识等．
+### http接口模型 ###
+业务功能中，时常需要请求其他服务的接口数据．我们需要定义http接口模型对象来方便业务逻辑代码使用．
 
-常用的补充内容：
-  * 应用标识(App-ID)：标识不同应用的数据．
-  * 认证标识(Auth-ID)：标识当前用户.
-  * 客户端名称(Client-Name)：请求访问发起的客户端名称（网关名称）
-  * 服务名称(Service-Name)：请求访问发起的服务端名称（服务名）
-  
-> 为了避免反复书写处理这类数据的功能代码，推荐使用[egg-http-relay](https://github.com/kiba-zhao/egg-http-relay)插件．
+### 使用customLoader设置http模型加载 ###
 
-> 该插件可以将指定的http header头，设置到ctx.params中．以及在使用eggjs的HttpClient请求其他接口时，将指定http header头传递过去．
+``` javascript
+// {app_root}/config/config.default.js
+
+exports.customLoader = {
+  httpApi: {
+    directory: 'app/http',
+    inject: 'app',
+    loadunit: true,
+    caseStyle: 'upper',
+  },
+};
+```
+
+### 定义http接口模型 ###
+
+``` javascript
+// {app_root}/app/http/simple.js
+
+const { Service: HttpModel } = require('egg');
+class SimpleHttp extends HttpModel {
+    
+     async find(condition,opts) {
+         const { app, config } = this;
+         const search = querystring.stringify(condition);
+         
+         const res = await app.curl(`${config.httpHosts.simple}/rest/v1/simple?${search}`, { dataType: 'json',contentType: 'json',headers:{'App-ID':opts.appId,'Auth-ID':opts.authId} });
+
+         return res.data;
+     }
+     
+     async createOne(entity,opts){
+         const { ctx, app, config } = this;
+         const res = await app.curl(`${config.httpHosts.simple}/rest/v1/simple`, { method: 'POST', data: entity ,dataType: 'json',contentType: 'json',headers:{'App-ID':opts.appId,'Auth-ID':opts.authId} });
+   
+         return res.data;
+     }
+     
+     async replaceOne(entity,condition,opts){
+         const { ctx, app, config } = this;
+         const {id,..._condition} = condition;
+         
+         const search = querystring.stringify(_condition);
+         
+         const res = await app.curl(`${config.httpHosts.simple}/rest/v1/simple/${id}?${search}`, { method: PUT', data: entity,dataType: 'json',contentType: 'json',headers:{'App-ID':opts.appId,'Auth-ID':opts.authId}  });
+   
+         return res.data;
+     }
+}
+```
+
+### 在业务逻辑中使用http模型 ###
+
+``` javascript
+// {app_root}/app/service/simple.js
+
+const { Service } = require('egg');
+class SimpleService extends Service {
+
+  /**
+   * 列出匹配条件的所有资源
+   * @param {Object} condition 匹配条件
+   * @param {Object} opts 可选项
+   */
+   async find(condition,opts) {
+       const { app } = this;
+       const res = await app.httpApi.Simple.find(condition,opts);
+       return res;
+   }
+   
+   /**
+   * 新建一个资源
+   * @param {Object} entity 资源内容
+   * @param {Object} opts 可选项      
+   */
+   async createOne(entity,opts) {
+       const { app } = this;
+       const res = await app.httpApi.Simple.createOne(entity,opts);
+       return res;   
+   }
+   
+   
+  /**
+   * 更新一个匹配资源的内容
+   * @param {Object} entity 更新资源内容
+   * @param {Object} condition 匹配条件
+   * @param {Object} opts 可选项
+   */
+   async replaceOne(entity,condition,opts){
+       const { app } = this;
+       const res = await app.httpApi.Simple.replaceOne(entity,condition,opts);
+       return res;
+   }
+}
+```
+
+> 推荐使用[egg-http-simple](https://github.com/kiba-zhao/egg-http-simple)插件来创建rest接口模型
 
 ### 参数注入 ###
 通常我们需要在业务逻辑中，使用http header头里的一些信息．为了方便开发，我们将headers数据注入到ctx.params中使用
@@ -416,8 +507,7 @@ class Simple extends Subscription {
 其他服务或客户端访问当前服务接口，需要提供接口文档以便开发请求访问功能的应用程序．
 
 通常我们需要至少提供以下入口的接口文档：
-  * 服务接口文档(openapi.yml)：通常由其他服务或网管请求访问
-  * web接口文档(webapi.yml)：通过web网关请求访问的接口
+  * 服务接口文档(openapi.yml)：通常由其他服务或网关请求访问
 
 > 推荐使用[egg-swagger](https://github.com/kiba-zhao/egg-swagger)插件．
 
@@ -444,19 +534,19 @@ class Simple extends Subscription {
 
 > 推荐使用[egg-redis](https://github.com/eggjs/egg-redis)插件．
 
-### rocketmq ###
-我们使用rocketmq来作为服务的消息队列．我们可以通过发布消息来通知其他[离线任务](#离线任务)，也可以通过订阅消息来触发
-
->插件尚未完成,由于apache官方client包还处于dev阶段,且底层使用的ccp client无法在开发机器上运行
-
 ### rabbitmq ###
-消息队列目前比较合适的替代方案．
+目前nodejs上比较合适的消息队列方案．我们可以通过订阅消息，将一部分业务功能延迟解耦处理．
 
 > 推荐使用[egg-rabbitmq](https://github.com/kiba-zhao/egg-rabbitmq)插件
 
 ## 快速开发 ##
 我们推荐使用一些命令工具来帮助快速创建项目，生成默认接口代码，以及数据操作接口代码等．
 
+### 使用http框架 ###
+
+### 项目快速创建 ###
+
+### sequelize资源快速创建 ###
 
 ## 调试 ##
 本地开发需要有一个调试环境，这个环境包含相关的数据库，缓存，消息队列以及三方接口．我们将服务运行的环境设置在docker-compose.yml里．利用docker构建本地开发环境
