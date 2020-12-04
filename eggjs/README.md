@@ -564,7 +564,8 @@ npm init egg --package egg-boilerplate-app
 通常数据库资源的接口，需要创建`service`,`model`,`docs`这三种文件．利用[egg-init](https://github.com/eggjs/egg-init)可以帮助我们快速创建相关文件，并自动生成一部分固定的文件内容．
 
 ``` shell
-npm init egg --package egg-boilerplate-sequelize-biz --force
+git clone https://github.com/kiba-zhao/egg-boilerplate-sequelize.git
+npm init egg -f --template egg-boilerplate-sequelize
 ```
 
 ## 调试 ##
