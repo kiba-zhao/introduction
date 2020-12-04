@@ -613,7 +613,7 @@ yml内容说明：
 > eggjs断点调试请参考[官方教程](https://eggjs.org/zh-cn/core/development.html#%E4%BD%BF%E7%94%A8-egg-bin-%E8%B0%83%E8%AF%95)
 
 ## 发布 ##
-为了方便布局，我们将服务整个打包成docker镜像．
+为了方便部署，我们将服务整个打包成docker镜像．
 
 Dockerfile示例文件内容:
 
