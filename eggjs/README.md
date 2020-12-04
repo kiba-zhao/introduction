@@ -535,18 +535,37 @@ class SimpleService extends Service {
 > 推荐使用[egg-redis](https://github.com/eggjs/egg-redis)插件．
 
 ### rabbitmq ###
-目前nodejs上比较合适的消息队列方案．我们可以通过订阅消息，将一部分业务功能延迟解耦处理．
+目前nodejs上比较合适的消息队列方案．可以通过订阅消息，将一部分业务功能解耦延迟处理．
+
+**以谁生产谁消费为原则．不建议将生产与消费分布在不同的应用服务上．如果消费业务涉及其他服务，可以通过接口调用的方式，在消费业务中请求另外应用服务上的业务功能接口．**
 
 > 推荐使用[egg-rabbitmq](https://github.com/kiba-zhao/egg-rabbitmq)插件
 
 ## 快速开发 ##
-我们推荐使用一些命令工具来帮助快速创建项目，生成默认接口代码，以及数据操作接口代码等．
+可以使用一些命令工具来帮助快速创建项目，生成默认接口代码，以及数据操作接口代码等．
 
 ### 使用http框架 ###
+[egg-simple-framework](https://github.com/kiba-zhao/egg-simple-framework)将上述http开发所需要应用的插件及功能，组合到了一起．并定义了一些默认的配置参数.
+
+定义的配置内容：
+* http模型加载配置
+* rabbitmq模块配置
+* sequelize模块配置
+* redis模块配置
 
 ### 项目快速创建 ###
+eggjs官方提供了一个创建项目的脚手架工具[egg-init](https://github.com/eggjs/egg-init)．我们定义了[egg-init](https://github.com/eggjs/egg-init)可以使用的项目模板．用于快速创建应用项目．
+
+``` shell
+npm init egg --package egg-boilerplate-app
+```
 
 ### sequelize资源快速创建 ###
+通常数据库资源的接口，需要创建`service`,`model`,`docs`这三种文件．利用[egg-init](https://github.com/eggjs/egg-init)可以帮助我们快速创建相关文件，并自动生成一部分固定的文件内容．
+
+``` shell
+npm init egg --package egg-boilerplate-sequelize-biz --force
+```
 
 ## 调试 ##
 本地开发需要有一个调试环境，这个环境包含相关的数据库，缓存，消息队列以及三方接口．我们将服务运行的环境设置在docker-compose.yml里．利用docker构建本地开发环境
@@ -559,7 +578,7 @@ services:
   mysql:
     image: "mysql:5"
     volumes:
-     - ./mysql:/docker-entrypoint-initdb.d
+     - ./initdb:/docker-entrypoint-initdb.d
     environment:
       MYSQL_ROOT_PASSWORD: example
     ports:

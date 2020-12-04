@@ -57,5 +57,5 @@
 
   * 缓存：redis
   * 业务数据： mysql/pgsql/mssql/mongodb等
-  * 消息队列：rocketmq
+  * 消息队列：rabbitmq
   * 其他三方接口
